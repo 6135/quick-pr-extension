@@ -3,17 +3,31 @@
   "name": "Quick PR",
   "version": "0.1.0",
   "description": "Open a pull request from the GitHub code page in one step, across forks.",
-  "permissions": ["storage"],
-  "host_permissions": ["https://github.com/*", "https://api.github.com/*"],
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://github.com/*",
+    "https://api.github.com/*"
+  ],
   "background": {
     "service_worker": "src/background.js",
-    "scripts": ["src/background.js"]
+    "scripts": [
+      "src/background.js"
+    ]
   },
   "content_scripts": [
     {
-      "matches": ["https://github.com/*"],
-      "js": ["src/lib.js", "src/content.js"],
-      "css": ["src/content.css"],
+      "matches": [
+        "https://github.com/*"
+      ],
+      "js": [
+        "src/lib.js",
+        "src/content.js"
+      ],
+      "css": [
+        "src/content.css"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -24,7 +38,15 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "quick-pr@6135.github.io",
-      "strict_min_version": "121.0"
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
     }
   }
 }

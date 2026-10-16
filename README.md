@@ -4,10 +4,17 @@ Browser extension. It adds a **Quick PR** button next to the **Code** button on 
 
 MVP: it needs no token and does not call the API to create the PR. You click **Create pull request** on GitHub.
 
-## Install (unpacked)
+## Install
 
-- Chrome / Edge: open `chrome://extensions`, turn on Developer mode, click **Load unpacked**, select this folder.
-- Firefox 121+: open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**, select `manifest.json`.
+### Firefox 140+
+
+- Quick test: run `npm run start:firefox`. Or open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**, and select `manifest.json`. Firefox removes a temporary add-on when it restarts.
+- Permanent install: Firefox release accepts only signed add-ons. Sign it as unlisted (self-distributed) on addons.mozilla.org: `npx web-ext@10.8.0 sign --channel=unlisted --api-key=... --api-secret=...`. Then open the `.xpi` file in Firefox.
+- If the button does not appear, open `about:addons` → Quick PR → **Permissions** and allow access to `github.com` and `api.github.com`.
+
+### Chrome / Edge
+
+Open `chrome://extensions`, turn on Developer mode, click **Load unpacked**, and select this folder.
 
 ## Target rules
 
@@ -22,8 +29,10 @@ You can edit the source branch and the target in the dialog before you click OK.
 - Without a token, the API gives 60 requests per hour and reads only public repos. For private repos, the extension reads the "forked from" link on the page.
 - GitHub changes its page structure often. If the button does not appear, the "Code" button selector in `src/content.js` needs an update.
 
-## Test
+## Commands
 
 ```
-npm test
+npm test        # unit tests
+npm run lint    # Mozilla add-on linter
+npm run build   # zip in web-ext-artifacts/
 ```
