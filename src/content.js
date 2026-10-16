@@ -8,6 +8,8 @@
   const DEFAULT_SETTINGS = { defaultBranch: "", overrides: "", openInNewTab: false };
 
   let scheduled = false;
+  // Data for the open dialog: { actions, computed }.
+  let current = { actions: [], computed: null };
 
   function schedule() {
     if (scheduled) return;
@@ -67,15 +69,22 @@
     dialog.querySelector("[name=head]").value = "";
     dialog.querySelector("[name=target]").value = "";
     dialog.querySelector("[data-action=default]").hidden = true;
+    dialog.querySelector(".qpr-action-row").hidden = true;
     dialog.showModal();
     dialog.querySelector("[name=title]").focus();
 
-    const [settings, repoInfo, remembered] = await Promise.all([
-      loadSettings(), loadRepoInfo(ctx), loadRemembered(ctx)
+    const [settings, repoInfo, remembered, allActions] = await Promise.all([
+      loadSettings(), loadRepoInfo(ctx), loadRemembered(ctx), loadActions()
     ]);
     const headBranch = detectHeadBranch(ctx, repoInfo);
     const computed = L.resolveTarget(ctx, repoInfo, settings);
-    const target = L.pickTarget(remembered, computed);
+    const actions = L.actionsForRepo(allActions, ctx.owner, ctx.repo);
+    current = { actions, computed };
+    const lastAction = remembered && actions.find((a) => a.id === remembered.actionId);
+    const target = lastAction
+      ? { ...L.actionTarget(lastAction, computed), remembered: true }
+      : L.pickTarget(remembered, computed);
+    fillActionSelect(dialog, actions, lastAction ? lastAction.id : "");
 
     dialog.dataset.owner = ctx.owner;
     dialog.dataset.repo = ctx.repo;
@@ -86,10 +95,34 @@
     dialog.querySelector("[data-action=default]").hidden = !target.remembered;
 
     const notes = [];
-    if (target.remembered) notes.push("Target from your last PR in this repo.");
+    if (lastAction) notes.push(`Quick action from your last PR in this repo: ${lastAction.name}.`);
+    else if (target.remembered) notes.push("Target from your last PR in this repo.");
     else if (!repoInfo) notes.push("Could not read repo data. Check the target.");
     if (!headBranch) notes.push("Could not detect the branch. Type it.");
     setStatus(dialog, notes.join(" "), !target.remembered && notes.length > 0);
+  }
+
+  function fillActionSelect(dialog, actions, selectedId) {
+    const select = dialog.querySelector("[name=action]");
+    select.replaceChildren(new Option("None (use the target below)", ""));
+    for (const a of actions) select.appendChild(new Option(a.name, a.id));
+    select.value = selectedId;
+    dialog.querySelector(".qpr-action-row").hidden = actions.length === 0;
+  }
+
+  function selectedAction(dialog) {
+    const id = dialog.querySelector("[name=action]").value;
+    return current.actions.find((a) => a.id === id) || null;
+  }
+
+  function loadActions() {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get({ quickActions: [] }, (out) => resolve((out && out.quickActions) || []));
+      } catch (_) {
+        resolve([]);
+      }
+    });
   }
 
   function formatTarget(t) {
@@ -108,9 +141,9 @@
     });
   }
 
-  function saveRemembered(owner, repo, target) {
+  function saveRemembered(owner, repo, target, actionId) {
     const key = L.rememberKey(owner, repo);
-    const value = { owner: target.owner, repo: target.repo, branch: target.branch, at: Date.now() };
+    const value = { owner: target.owner, repo: target.repo, branch: target.branch, actionId: actionId || null, at: Date.now() };
     return new Promise((resolve) => {
       try {
         chrome.storage.local.set({ [key]: value }, () => resolve());
@@ -186,6 +219,7 @@
     dialog.innerHTML = `
       <form method="dialog" class="qpr-form">
         <h2 class="qpr-heading">Open a pull request</h2>
+        <label class="qpr-action-row">Quick action <select name="action"></select></label>
         <label>Title <input name="title" type="text" required autocomplete="off"></label>
         <label>From branch <input name="head" type="text" required autocomplete="off"></label>
         <label>Into (owner/repo:branch) <input name="target" type="text" required autocomplete="off"></label>
@@ -199,8 +233,22 @@
     dialog.querySelector("[data-action=cancel]").addEventListener("click", () => dialog.close());
     dialog.querySelector("[data-action=default]").addEventListener("click", (e) => {
       dialog.querySelector("[name=target]").value = dialog.dataset.defaultTarget || "";
+      dialog.querySelector("[name=action]").value = "";
       e.currentTarget.hidden = true;
       setStatus(dialog, "Default target. Click OK to remember it.", false);
+    });
+    dialog.querySelector("[name=action]").addEventListener("change", () => {
+      const action = selectedAction(dialog);
+      if (!action) return setStatus(dialog, "", false);
+      const t = L.actionTarget(action, current.computed);
+      dialog.querySelector("[name=target]").value = formatTarget(t);
+      setStatus(dialog, describeAction(action), false);
+    });
+    // Editing the target by hand turns the quick action off.
+    dialog.querySelector("[name=target]").addEventListener("input", () => {
+      const select = dialog.querySelector("[name=action]");
+      if (select.value) setStatus(dialog, "Custom target. The quick action is off.", false);
+      select.value = "";
     });
     dialog.querySelector("form").addEventListener("submit", (e) => onSubmit(e, dialog));
     document.body.appendChild(dialog);
@@ -219,17 +267,30 @@
     const head = { owner: dialog.dataset.owner, repo: dialog.dataset.repo, branch: headBranch };
     if (L.isSameRef(head, target)) return setStatus(dialog, "The source and the target are the same branch.", true);
 
-    const url = L.buildCompareUrl(head, target, title);
+    const action = selectedAction(dialog);
+    const url = action
+      ? L.buildCompareUrl(head, target, L.applyTitlePrefix(action.titlePrefix, title), action)
+      : L.buildCompareUrl(head, target, title);
+    const actionId = action ? action.id : null;
     dialog.close();
     if (dialog.dataset.newTab) {
       // Open first: the popup blocker can stop window.open after an await.
       window.open(url, "_blank", "noopener");
-      saveRemembered(head.owner, head.repo, target);
+      saveRemembered(head.owner, head.repo, target, actionId);
     } else {
       // Save first: the page unload can stop a pending write.
-      await saveRemembered(head.owner, head.repo, target);
+      await saveRemembered(head.owner, head.repo, target, actionId);
       location.assign(url);
     }
+  }
+
+  function describeAction(a) {
+    const parts = [];
+    if (a.titlePrefix) parts.push(`title prefix "${a.titlePrefix.trim()}"`);
+    if (a.body) parts.push("body");
+    if (a.labels) parts.push(`labels ${a.labels}`);
+    if (a.assignees) parts.push(`assignees ${a.assignees}`);
+    return parts.length ? `Adds: ${parts.join(", ")}.` : "";
   }
 
   function setStatus(dialog, text, isError) {

@@ -106,3 +106,71 @@ test("pickTarget: missing or incomplete remembered target uses the computed one"
   assert.deepEqual(L.pickTarget(null, computed), { ...computed, remembered: false });
   assert.deepEqual(L.pickTarget({ owner: "up", repo: "proj" }, computed), { ...computed, remembered: false });
 });
+
+test("normalizeAction cleans values and validates", () => {
+  const { action, error } = L.normalizeAction({
+    id: "a1", name: " Upstream dev ", target: "up/proj:develop", repos: "me/*\nteam/app",
+    labels: "bug, ui", assignees: "@octocat, me", titlePrefix: "[FEAT] "
+  });
+  assert.equal(error, null);
+  assert.deepEqual(action, {
+    id: "a1", name: "Upstream dev", target: "up/proj:develop", repos: "me/*, team/app",
+    titlePrefix: "[FEAT] ", body: "", labels: "bug,ui", assignees: "octocat,me"
+  });
+  assert.match(L.normalizeAction({ name: "", target: ":dev" }).error, /name/);
+  assert.match(L.normalizeAction({ name: "x", target: "up/proj" }).error, /target/);
+  assert.match(L.normalizeAction({ name: "x", target: ":dev", repos: "bad pattern" }).error, /pattern/);
+  assert.equal(L.normalizeAction({ name: "x", target: ":dev", repos: "*" }).error, null);
+});
+
+test("matchesRepo and actionsForRepo", () => {
+  assert.equal(L.matchesRepo("", "me", "p"), true);
+  assert.equal(L.matchesRepo("*", "me", "p"), true);
+  assert.equal(L.matchesRepo("Me/*", "me", "p"), true);
+  assert.equal(L.matchesRepo("me/P", "me", "p"), true);
+  assert.equal(L.matchesRepo("me/q, team/*", "me", "p"), false);
+  const actions = [{ id: 1, repos: "" }, { id: 2, repos: "other/*" }, { id: 3, repos: "me/p" }];
+  assert.deepEqual(L.actionsForRepo(actions, "me", "p").map((a) => a.id), [1, 3]);
+});
+
+test("actionTarget: ':branch' uses the computed repo, full target is used as is", () => {
+  const computed = { owner: "up", repo: "proj", branch: "main" };
+  assert.deepEqual(L.actionTarget({ target: ":develop" }, computed), { owner: "up", repo: "proj", branch: "develop" });
+  assert.deepEqual(L.actionTarget({ target: "friend/proj:feature/x" }, computed), { owner: "friend", repo: "proj", branch: "feature/x" });
+  assert.equal(L.actionTarget({ target: "friend/proj" }, computed), null);
+});
+
+test("applyTitlePrefix does not add the prefix twice", () => {
+  assert.equal(L.applyTitlePrefix("[FEAT] ", "Add x"), "[FEAT] Add x");
+  assert.equal(L.applyTitlePrefix("[FEAT] ", "[FEAT] Add x"), "[FEAT] Add x");
+  assert.equal(L.applyTitlePrefix("", "Add x"), "Add x");
+});
+
+test("export, import and merge", () => {
+  const existing = [{ id: "x", name: "Upstream", target: ":main", repos: "", titlePrefix: "", body: "", labels: "", assignees: "" }];
+  const text = L.exportActions([
+    { id: "y", name: "upstream", target: ":develop" },
+    { id: "z", name: "Friend fork", target: "friend/proj:main" }
+  ]);
+  assert.equal(text.includes('"id"'), false);
+  const { actions, errors } = L.parseImport(text);
+  assert.deepEqual(errors, []);
+  let n = 0;
+  const merged = L.mergeActions(existing, actions, () => `new${++n}`);
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].id, "x");
+  assert.equal(merged[0].target, ":develop");
+  assert.equal(merged[1].id, "new1");
+  assert.match(L.parseImport("nope").errors[0], /JSON/);
+  assert.equal(L.parseImport('[{"name":"a","target":":b"},{"name":""}]').actions.length, 1);
+});
+
+test("buildCompareUrl adds body, labels and assignees", () => {
+  const url = L.buildCompareUrl({ owner: "me", repo: "proj", branch: "dev" }, { owner: "up", repo: "proj", branch: "main" },
+    "T", { body: "Line 1\nLine 2", labels: "bug,ui", assignees: "octocat" });
+  const q = new URL(url).searchParams;
+  assert.equal(q.get("title"), "T");
+  assert.equal(q.get("body"), "Line 1\nLine 2");
+  assert.equal(q.get("labels"), "bug,ui");
+  assert.equal(q.get("assignees"), "octocat");
+});

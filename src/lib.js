@@ -121,6 +121,110 @@
     return { owner: computed.owner, repo: computed.repo, branch: computed.branch, remembered: false };
   }
 
+  // ---- Quick actions ----
+  // Stored shape: { id, name, target, repos, titlePrefix, body, labels, assignees }.
+  //   target: "owner/repo:branch", or ":branch" for the default target repo with that branch.
+  //   repos: source repo patterns ("owner/repo", "owner/*", "*"), split by comma or new line.
+  //          Empty means all repos.
+  //   labels, assignees: comma-separated lists.
+
+  function splitList(text) {
+    return String(text || "").split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  // Returns { action, error }. action has clean values. error is a string or null.
+  function normalizeAction(raw) {
+    const r = raw || {};
+    const name = String(r.name || "").trim();
+    const targetText = String(r.target || "").trim();
+    if (!name) return { action: null, error: "The name is required." };
+    const t = parseTarget(targetText);
+    if (!t || !t.branch) return { action: null, error: `"${name}": use owner/repo:branch or :branch for the target.` };
+    const repos = splitList(r.repos);
+    const badRepo = repos.find((p) => !/^(\*|[A-Za-z0-9-]+\/(\*|[A-Za-z0-9._-]+))$/.test(p));
+    if (badRepo) return { action: null, error: `"${name}": incorrect repo pattern "${badRepo}".` };
+    return {
+      action: {
+        id: String(r.id || ""),
+        name,
+        target: targetText,
+        repos: repos.join(", "),
+        titlePrefix: String(r.titlePrefix || ""),
+        body: String(r.body || ""),
+        labels: splitList(r.labels).join(","),
+        assignees: splitList(r.assignees).map((a) => a.replace(/^@/, "")).join(",")
+      },
+      error: null
+    };
+  }
+
+  function matchesRepo(patterns, owner, repo) {
+    const list = splitList(patterns);
+    if (!list.length) return true;
+    const o = owner.toLowerCase();
+    const full = `${o}/${repo.toLowerCase()}`;
+    return list.some((p) => {
+      const q = p.toLowerCase();
+      return q === "*" || q === full || q === `${o}/*`;
+    });
+  }
+
+  function actionsForRepo(actions, owner, repo) {
+    return (actions || []).filter((a) => a && matchesRepo(a.repos, owner, repo));
+  }
+
+  // computed: the default target ({ owner, repo, branch }).
+  function actionTarget(action, computed) {
+    const t = parseTarget(action.target);
+    if (!t || !t.branch) return null;
+    if (!t.owner) return { owner: computed.owner, repo: computed.repo, branch: t.branch };
+    return { owner: t.owner, repo: t.repo, branch: t.branch };
+  }
+
+  function applyTitlePrefix(prefix, title) {
+    const p = String(prefix || "");
+    if (!p || title.startsWith(p.trim())) return title;
+    return p + title;
+  }
+
+  // Accepts the export format { quickActions: [...] } or a bare array.
+  // Returns { actions, errors }. Only valid actions are returned.
+  function parseImport(text) {
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (_) {
+      return { actions: [], errors: ["The text is not valid JSON."] };
+    }
+    const list = Array.isArray(data) ? data : data && data.quickActions;
+    if (!Array.isArray(list)) return { actions: [], errors: ['Expected a "quickActions" list.'] };
+    const actions = [];
+    const errors = [];
+    list.forEach((raw) => {
+      const { action, error } = normalizeAction(raw);
+      if (error) errors.push(error);
+      else actions.push(action);
+    });
+    return { actions, errors };
+  }
+
+  // Imported actions replace existing actions with the same name (case-insensitive).
+  // Other imported actions are added. makeId gives new IDs.
+  function mergeActions(existing, imported, makeId) {
+    const out = (existing || []).slice();
+    for (const a of imported) {
+      const i = out.findIndex((e) => e.name.toLowerCase() === a.name.toLowerCase());
+      if (i === -1) out.push({ ...a, id: makeId() });
+      else out[i] = { ...a, id: out[i].id };
+    }
+    return out;
+  }
+
+  function exportActions(actions) {
+    const clean = (actions || []).map(({ id, ...rest }) => rest);
+    return JSON.stringify({ quickActions: clean }, null, 2);
+  }
+
   // Encodes a ref for a URL path. Keeps "/" so branch names like "feature/x" work.
   function encodeRef(ref) {
     return String(ref).split("/").map(encodeURIComponent).join("/");
@@ -128,7 +232,8 @@
 
   // Builds the compare URL that opens the "Open a pull request" form.
   // head: { owner, repo, branch }. target: { owner, repo, branch }.
-  function buildCompareUrl(head, target, title) {
+  // extras (optional): { body, labels, assignees }. GitHub fills these form fields from the URL.
+  function buildCompareUrl(head, target, title, extras) {
     const sameRepo = head.owner.toLowerCase() === target.owner.toLowerCase() &&
       head.repo.toLowerCase() === target.repo.toLowerCase();
     let headSpec;
@@ -138,6 +243,10 @@
 
     const params = new URLSearchParams({ expand: "1" });
     if (title) params.set("title", title);
+    const x = extras || {};
+    if (x.body) params.set("body", x.body);
+    if (x.labels) params.set("labels", x.labels);
+    if (x.assignees) params.set("assignees", x.assignees);
     return `https://github.com/${target.owner}/${target.repo}/compare/` +
       `${encodeRef(target.branch)}...${headSpec}?${params.toString()}`;
   }
@@ -151,7 +260,9 @@
 
   const api = {
     parseCodePage, findRefInfo, parseTarget, parseOverrides,
-    resolveTarget, rememberKey, pickTarget, encodeRef, buildCompareUrl, isSameRef
+    resolveTarget, rememberKey, pickTarget, encodeRef, buildCompareUrl, isSameRef,
+    normalizeAction, matchesRepo, actionsForRepo, actionTarget, applyTitlePrefix,
+    parseImport, mergeActions, exportActions
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.QuickPrLib = api;

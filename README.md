@@ -16,9 +16,18 @@ MVP: it needs no token and does not call the API to create the PR. You click **C
 
 Open `chrome://extensions`, turn on Developer mode, click **Load unpacked**, and select this folder.
 
+## Quick actions
+
+Click the Quick PR toolbar button (it works on any page) or open the extension settings.
+
+- **Quick action:** a saved target with a name. The target can be any user's repo or fork (`owner/repo:branch`), or `:branch` for the default target repo. Optional: title prefix, body, labels, assignees, and the source repos where it shows (`owner/repo`, `owner/*`, `*`; empty means all).
+- In the Quick PR dialog, pick a quick action. The last action used in a repo is selected next time.
+- **Share:** Export gives JSON text. Send it to another person. They paste it and click Import. Actions with the same name are replaced.
+- Quick actions are saved on this computer only (`storage.local`). Firefox Sync does not copy them, so use Export/Import to move them.
+
 ## Target rules
 
-1. The target of your last Quick PR from this repo. Click **Use default target** in the dialog to go back to the default. Settings → **Remembered targets** shows and removes saved targets.
+1. The quick action or target of your last Quick PR from this repo. Click **Use default target** in the dialog to go back to the default. Settings → **Remembered targets** shows and removes saved targets.
 2. The per-repo override in the settings, if one exists.
 3. Repo: the fork parent. If the repo is not a fork, the same repo.
 4. Branch: the default branch in the settings. If it is empty, the default branch of the target repo. If that is unknown, `main`.

@@ -2,19 +2,69 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Quick PR settings</title>
   <style>
-    body { font: 14px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 16px; min-width: 420px; }
-    label { display: block; margin-bottom: 16px; font-weight: 600; }
+    :root { color-scheme: light dark; }
+    body { font: 14px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 12px; min-width: 440px; max-width: 760px; }
+    h2 { font-size: 15px; margin: 20px 0 8px; }
+    h2:first-of-type { margin-top: 4px; }
+    label { display: block; margin-bottom: 10px; font-weight: 600; }
     input[type=text], textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; font: 13px ui-monospace, monospace; padding: 6px; }
-    textarea { min-height: 120px; }
-    .hint { font-weight: 400; color: #59636e; margin: 4px 0 0; }
+    textarea { min-height: 80px; }
+    .hint { font-weight: 400; opacity: 0.75; margin: 4px 0 0; }
     .inline { font-weight: 400; }
-    #status { min-height: 20px; }
+    .status { min-height: 20px; margin: 6px 0; }
     .error { color: #d1242f; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    ul { padding-left: 0; list-style: none; margin: 0 0 8px; }
+    li { display: flex; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid rgba(128,128,128,0.25); }
+    li .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    li small { display: block; opacity: 0.75; }
+    fieldset { border: 1px solid rgba(128,128,128,0.4); border-radius: 6px; padding: 10px; margin: 8px 0; }
+    #tabLink[hidden] { display: none; }
   </style>
 </head>
 <body>
+  <p class="row" id="tabLink" hidden><a href="#" id="openTab">Open in a tab</a></p>
+
+  <h2>Quick actions</h2>
+  <p class="hint">Saved PR targets. Pick one in the Quick PR dialog. The target can be any user's repo or fork.</p>
+  <ul id="actions"></ul>
+  <button id="newAction" type="button">Add quick action</button>
+
+  <fieldset id="editor" hidden>
+    <legend id="editorTitle">New quick action</legend>
+    <label>Name <input id="aName" type="text" placeholder="Upstream develop"></label>
+    <label>Target
+      <input id="aTarget" type="text" placeholder="owner/repo:branch  or  :branch">
+      <p class="hint"><code>:develop</code> means the default target repo (fork parent or same repo), branch <code>develop</code>.</p>
+    </label>
+    <label>Show in repos
+      <input id="aRepos" type="text" placeholder="Empty: all repos. Example: me/*, team/app">
+    </label>
+    <label>Title prefix <input id="aPrefix" type="text" placeholder="[FEAT] "></label>
+    <label>Body <textarea id="aBody" placeholder="PR description template"></textarea></label>
+    <label>Labels <input id="aLabels" type="text" placeholder="bug, ui"></label>
+    <label>Assignees <input id="aAssignees" type="text" placeholder="octocat, me"></label>
+    <div class="row">
+      <button id="saveAction" type="button">Save</button>
+      <button id="cancelAction" type="button">Cancel</button>
+    </div>
+  </fieldset>
+  <p id="actionStatus" class="status" role="status"></p>
+
+  <h2>Share quick actions</h2>
+  <p class="hint">Export, then send the text to another person. To import, paste the text and click Import. Actions with the same name are replaced.</p>
+  <textarea id="shareText" spellcheck="false" placeholder='{"quickActions": [...]}'></textarea>
+  <div class="row">
+    <button id="exportBtn" type="button">Export</button>
+    <button id="copyBtn" type="button">Copy</button>
+    <button id="importBtn" type="button">Import</button>
+  </div>
+  <p id="shareStatus" class="status" role="status"></p>
+
+  <h2>Defaults</h2>
   <label>Default target branch
     <input id="defaultBranch" type="text" placeholder="Empty: use the target repo default branch">
     <p class="hint">The PR opens into the fork parent (or the same repo, if it is not a fork), on this branch.</p>
@@ -24,12 +74,14 @@
     <p class="hint">One line for each repo: <code>source/repo = target/repo:branch</code>. The <code>:branch</code> part is optional. Lines that start with # are ignored.</p>
   </label>
   <label class="inline"><input id="openInNewTab" type="checkbox"> Open the PR form in a new tab</label>
-  <button id="save" type="button">Save</button>
-  <p id="status" role="status"></p>
-  <h3>Remembered targets</h3>
-  <p class="hint">After each Quick PR, the target is saved for the source repo. It is used before the overrides and the default branch.</p>
+  <button id="save" type="button">Save defaults</button>
+  <p id="status" class="status" role="status"></p>
+
+  <h2>Remembered targets</h2>
+  <p class="hint">After each Quick PR, the target (and quick action) is saved for the source repo. It is used before the overrides and the default branch.</p>
   <ul id="remembered"></ul>
   <button id="forgetAll" type="button" hidden>Forget all</button>
+
   <script src="lib.js"></script>
   <script src="options.js"></script>
 </body>
