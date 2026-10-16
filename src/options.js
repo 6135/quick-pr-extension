@@ -9,6 +9,31 @@ chrome.storage.sync.get(DEFAULTS, (s) => {
   $("openInNewTab").checked = !!s.openInNewTab;
 });
 
+function renderRemembered() {
+  chrome.storage.local.get(null, (all) => {
+    const keys = Object.keys(all || {}).filter((k) => k.startsWith("last:")).sort();
+    const list = $("remembered");
+    list.replaceChildren();
+    for (const key of keys) {
+      const t = all[key];
+      const li = document.createElement("li");
+      const text = document.createElement("code");
+      text.textContent = `${key.slice(5)} → ${t.owner}/${t.repo}:${t.branch}`;
+      const forget = document.createElement("button");
+      forget.type = "button";
+      forget.textContent = "Forget";
+      forget.addEventListener("click", () => chrome.storage.local.remove(key, renderRemembered));
+      li.append(text, " ", forget);
+      list.appendChild(li);
+    }
+    if (!keys.length) list.textContent = "None yet.";
+    $("forgetAll").hidden = !keys.length;
+    $("forgetAll").onclick = () => chrome.storage.local.remove(keys, renderRemembered);
+  });
+}
+
+renderRemembered();
+
 $("save").addEventListener("click", () => {
   const overrides = $("overrides").value;
   const { errors } = globalThis.QuickPrLib.parseOverrides(overrides);

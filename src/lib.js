@@ -78,7 +78,7 @@
     return { map, errors };
   }
 
-  // Decides the PR target. Order:
+  // Decides the default PR target (a remembered target wins over it, see pickTarget). Order:
   //   1. Per-repo override.
   //   2. Repo: fork parent, else the same repo.
   //   3. Branch: global default branch setting, else the target repo's default branch, else "main".
@@ -105,6 +105,20 @@
     const globalBranch = ((settings && settings.defaultBranch) || "").trim();
     const branch = override.branch || globalBranch || repoDefault || "main";
     return { owner, repo, branch };
+  }
+
+  // Storage key for the last target used from a source repo.
+  function rememberKey(owner, repo) {
+    return `last:${owner}/${repo}`.toLowerCase();
+  }
+
+  // The target used last time wins over the computed default.
+  // remembered: { owner, repo, branch } or null. Incomplete values are ignored.
+  function pickTarget(remembered, computed) {
+    if (remembered && remembered.owner && remembered.repo && remembered.branch) {
+      return { owner: remembered.owner, repo: remembered.repo, branch: remembered.branch, remembered: true };
+    }
+    return { owner: computed.owner, repo: computed.repo, branch: computed.branch, remembered: false };
   }
 
   // Encodes a ref for a URL path. Keeps "/" so branch names like "feature/x" work.
@@ -137,7 +151,7 @@
 
   const api = {
     parseCodePage, findRefInfo, parseTarget, parseOverrides,
-    resolveTarget, encodeRef, buildCompareUrl, isSameRef
+    resolveTarget, rememberKey, pickTarget, encodeRef, buildCompareUrl, isSameRef
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.QuickPrLib = api;

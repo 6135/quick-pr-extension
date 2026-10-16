@@ -90,3 +90,19 @@ test("isSameRef", () => {
   assert.equal(L.isSameRef({ owner: "Me", repo: "p", branch: "main" }, { owner: "me", repo: "P", branch: "main" }), true);
   assert.equal(L.isSameRef({ owner: "me", repo: "p", branch: "dev" }, { owner: "me", repo: "p", branch: "main" }), false);
 });
+
+test("rememberKey is lowercase and per repo", () => {
+  assert.equal(L.rememberKey("Me", "Proj"), "last:me/proj");
+});
+
+test("pickTarget: remembered target wins", () => {
+  const computed = { owner: "up", repo: "proj", branch: "main" };
+  assert.deepEqual(L.pickTarget({ owner: "up", repo: "proj", branch: "develop", at: 1 }, computed),
+    { owner: "up", repo: "proj", branch: "develop", remembered: true });
+});
+
+test("pickTarget: missing or incomplete remembered target uses the computed one", () => {
+  const computed = { owner: "up", repo: "proj", branch: "main" };
+  assert.deepEqual(L.pickTarget(null, computed), { ...computed, remembered: false });
+  assert.deepEqual(L.pickTarget({ owner: "up", repo: "proj" }, computed), { ...computed, remembered: false });
+});

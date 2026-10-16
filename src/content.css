@@ -92,3 +92,11 @@
 .qpr-actions .qpr-btn {
   margin-right: 0;
 }
+
+.qpr-actions .qpr-btn-left {
+  margin-right: auto;
+}
+
+.qpr-btn[hidden] {
+  display: none;
+}

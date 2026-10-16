@@ -66,23 +66,58 @@
     dialog.querySelector("[name=title]").value = "";
     dialog.querySelector("[name=head]").value = "";
     dialog.querySelector("[name=target]").value = "";
+    dialog.querySelector("[data-action=default]").hidden = true;
     dialog.showModal();
     dialog.querySelector("[name=title]").focus();
 
-    const [settings, repoInfo] = await Promise.all([loadSettings(), loadRepoInfo(ctx)]);
+    const [settings, repoInfo, remembered] = await Promise.all([
+      loadSettings(), loadRepoInfo(ctx), loadRemembered(ctx)
+    ]);
     const headBranch = detectHeadBranch(ctx, repoInfo);
-    const target = L.resolveTarget(ctx, repoInfo, settings);
+    const computed = L.resolveTarget(ctx, repoInfo, settings);
+    const target = L.pickTarget(remembered, computed);
 
     dialog.dataset.owner = ctx.owner;
     dialog.dataset.repo = ctx.repo;
     dialog.dataset.newTab = settings.openInNewTab ? "1" : "";
+    dialog.dataset.defaultTarget = formatTarget(computed);
     dialog.querySelector("[name=head]").value = headBranch || "";
-    dialog.querySelector("[name=target]").value = `${target.owner}/${target.repo}:${target.branch}`;
+    dialog.querySelector("[name=target]").value = formatTarget(target);
+    dialog.querySelector("[data-action=default]").hidden = !target.remembered;
 
     const notes = [];
-    if (!repoInfo) notes.push("Could not read repo data. Check the target.");
+    if (target.remembered) notes.push("Target from your last PR in this repo.");
+    else if (!repoInfo) notes.push("Could not read repo data. Check the target.");
     if (!headBranch) notes.push("Could not detect the branch. Type it.");
-    setStatus(dialog, notes.join(" "), notes.length > 0);
+    setStatus(dialog, notes.join(" "), !target.remembered && notes.length > 0);
+  }
+
+  function formatTarget(t) {
+    return `${t.owner}/${t.repo}:${t.branch}`;
+  }
+
+  // Remembered targets are kept in storage.local: one key for each source repo.
+  function loadRemembered(ctx) {
+    const key = L.rememberKey(ctx.owner, ctx.repo);
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get(key, (out) => resolve((out && out[key]) || null));
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  }
+
+  function saveRemembered(owner, repo, target) {
+    const key = L.rememberKey(owner, repo);
+    const value = { owner: target.owner, repo: target.repo, branch: target.branch, at: Date.now() };
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.set({ [key]: value }, () => resolve());
+      } catch (_) {
+        resolve();
+      }
+    });
   }
 
   function loadSettings() {
@@ -156,17 +191,23 @@
         <label>Into (owner/repo:branch) <input name="target" type="text" required autocomplete="off"></label>
         <p class="qpr-status" role="status"></p>
         <div class="qpr-actions">
+          <button type="button" class="qpr-btn qpr-btn-left" data-action="default" hidden>Use default target</button>
           <button type="button" class="qpr-btn" data-action="cancel">Cancel</button>
           <button type="submit" class="qpr-btn qpr-btn-primary">OK</button>
         </div>
       </form>`;
     dialog.querySelector("[data-action=cancel]").addEventListener("click", () => dialog.close());
+    dialog.querySelector("[data-action=default]").addEventListener("click", (e) => {
+      dialog.querySelector("[name=target]").value = dialog.dataset.defaultTarget || "";
+      e.currentTarget.hidden = true;
+      setStatus(dialog, "Default target. Click OK to remember it.", false);
+    });
     dialog.querySelector("form").addEventListener("submit", (e) => onSubmit(e, dialog));
     document.body.appendChild(dialog);
     return dialog;
   }
 
-  function onSubmit(event, dialog) {
+  async function onSubmit(event, dialog) {
     event.preventDefault();
     const title = dialog.querySelector("[name=title]").value.trim();
     const headBranch = dialog.querySelector("[name=head]").value.trim();
@@ -180,8 +221,15 @@
 
     const url = L.buildCompareUrl(head, target, title);
     dialog.close();
-    if (dialog.dataset.newTab) window.open(url, "_blank", "noopener");
-    else location.assign(url);
+    if (dialog.dataset.newTab) {
+      // Open first: the popup blocker can stop window.open after an await.
+      window.open(url, "_blank", "noopener");
+      saveRemembered(head.owner, head.repo, target);
+    } else {
+      // Save first: the page unload can stop a pending write.
+      await saveRemembered(head.owner, head.repo, target);
+      location.assign(url);
+    }
   }
 
   function setStatus(dialog, text, isError) {

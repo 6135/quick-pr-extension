@@ -18,9 +18,10 @@ Open `chrome://extensions`, turn on Developer mode, click **Load unpacked**, and
 
 ## Target rules
 
-1. The per-repo override in the settings, if one exists.
-2. Repo: the fork parent. If the repo is not a fork, the same repo.
-3. Branch: the default branch in the settings. If it is empty, the default branch of the target repo. If that is unknown, `main`.
+1. The target of your last Quick PR from this repo. Click **Use default target** in the dialog to go back to the default. Settings → **Remembered targets** shows and removes saved targets.
+2. The per-repo override in the settings, if one exists.
+3. Repo: the fork parent. If the repo is not a fork, the same repo.
+4. Branch: the default branch in the settings. If it is empty, the default branch of the target repo. If that is unknown, `main`.
 
 You can edit the source branch and the target in the dialog before you click OK.
 
