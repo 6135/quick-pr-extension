@@ -68,3 +68,4 @@ Setup, one time:
 2. In the GitHub repo, open **Settings → Secrets and variables → Actions** and add `AMO_JWT_ISSUER` (the JWT issuer) and `AMO_JWT_SECRET` (the JWT secret).
 
 Each release needs a new `version` in `manifest.json`. AMO does not sign the same version two times.
+
