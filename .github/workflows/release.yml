@@ -13,9 +13,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -37,7 +37,10 @@ jobs:
       - name: Package (Chromium zip, unsigned Firefox zip)
         run: npm run package
 
+      # Off by default. To sign, set the repository variable SIGN_FIREFOX to "true"
+      # and add the AMO_JWT_ISSUER and AMO_JWT_SECRET secrets.
       - name: Sign for Firefox (unlisted, addons.mozilla.org)
+        if: vars.SIGN_FIREFOX == 'true'
         env:
           WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
           WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
@@ -54,8 +57,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          firefox="web-ext-artifacts/quick-pr-${VERSION}-firefox.xpi"
+          [ -f "$firefox" ] || firefox="web-ext-artifacts/quick-pr-${VERSION}-firefox-unsigned.zip"
           gh release create "${GITHUB_REF_NAME}" \
             --title "Quick PR ${VERSION}" \
             --generate-notes \
-            "web-ext-artifacts/quick-pr-${VERSION}-firefox.xpi" \
+            "$firefox" \
             "web-ext-artifacts/quick-pr-${VERSION}-chromium.zip"
