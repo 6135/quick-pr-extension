@@ -42,7 +42,29 @@ You can edit the source branch and the target in the dialog before you click OK.
 ## Commands
 
 ```
-npm test        # unit tests
-npm run lint    # Mozilla add-on linter
-npm run build   # zip in web-ext-artifacts/
+npm test              # unit tests
+npm run build         # dist/firefox and dist/chromium, each with its own manifest
+npm run lint          # Mozilla add-on linter on dist/firefox
+npm run package       # zips in web-ext-artifacts/
+npm run start:firefox # test Firefox profile with the add-on loaded
 ```
+
+## Release
+
+The `Release` workflow runs when you push a tag that matches the manifest version:
+
+```
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+It runs the tests and the linter, signs the Firefox build on addons.mozilla.org (unlisted: signed, not public), and makes a GitHub release with:
+
+- `quick-pr-<version>-firefox.xpi`: signed. Open it in Firefox to install.
+- `quick-pr-<version>-chromium.zip`: for Chrome, Edge and Opera. Upload it to the Chrome Web Store, Edge Add-ons or Opera Add-ons (the store signs it), or extract it and use **Load unpacked**.
+
+Setup, one time:
+
+1. On https://addons.mozilla.org/developers/addon/api/key/ make an API key.
+2. In the GitHub repo, open **Settings → Secrets and variables → Actions** and add `AMO_JWT_ISSUER` (the JWT issuer) and `AMO_JWT_SECRET` (the JWT secret).
+
+Each release needs a new `version` in `manifest.json`. AMO does not sign the same version two times.
