@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Quick PR",
+  "version": "0.1.0",
+  "description": "Open a pull request from the GitHub code page in one step, across forks.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://github.com/*", "https://api.github.com/*"],
+  "background": {
+    "service_worker": "src/background.js",
+    "scripts": ["src/background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://github.com/*"],
+      "js": ["src/lib.js", "src/content.js"],
+      "css": ["src/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": false
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "quick-pr@6135.github.io",
+      "strict_min_version": "121.0"
+    }
+  }
+}
