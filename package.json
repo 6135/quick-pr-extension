@@ -1,0 +1,19 @@
+{
+  "name": "quick-pr-extension",
+  "version": "0.2.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test",
+    "lint": "npx --yes web-ext@10.8.0 lint",
+    "start:firefox": "npx --yes web-ext@10.8.0 run --start-url https://github.com",
+    "build": "npx --yes web-ext@10.8.0 build --overwrite-dest"
+  },
+  "webExt": {
+    "ignoreFiles": [
+      "test",
+      "package.json",
+      "README.md"
+    ]
+  }
+}
