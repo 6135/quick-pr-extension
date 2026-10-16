@@ -57,15 +57,17 @@ The `Release` workflow runs when you push a tag that matches the manifest versio
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-It runs the tests and the linter, signs the Firefox build on addons.mozilla.org (unlisted: signed, not public), and makes a GitHub release with:
+It runs the tests and the linter, and makes a GitHub release with:
 
-- `quick-pr-<version>-firefox.xpi`: signed. Open it in Firefox to install.
 - `quick-pr-<version>-chromium.zip`: for Chrome, Edge and Opera. Upload it to the Chrome Web Store, Edge Add-ons or Opera Add-ons (the store signs it), or extract it and use **Load unpacked**.
+- Firefox, one of:
+  - `quick-pr-<version>-firefox-unsigned.zip` (default): not signed. Firefox release does not install it. Use it with **Load Temporary Add-on**, or in Firefox Developer Edition / Nightly with `xpinstall.signatures.required` set to `false`.
+  - `quick-pr-<version>-firefox.xpi`: signed on addons.mozilla.org (unlisted: signed, not public). Only when signing is on.
 
-Setup, one time:
+To turn on Firefox signing:
 
 1. On https://addons.mozilla.org/developers/addon/api/key/ make an API key.
-2. In the GitHub repo, open **Settings → Secrets and variables → Actions** and add `AMO_JWT_ISSUER` (the JWT issuer) and `AMO_JWT_SECRET` (the JWT secret).
+2. In the GitHub repo, open **Settings → Secrets and variables → Actions**. Add the secrets `AMO_JWT_ISSUER` (the JWT issuer) and `AMO_JWT_SECRET` (the JWT secret). On the **Variables** tab, add `SIGN_FIREFOX` with the value `true`.
 
 Each release needs a new `version` in `manifest.json`. AMO does not sign the same version two times.
 
